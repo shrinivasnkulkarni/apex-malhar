@@ -4,11 +4,11 @@
   <parent>
     <artifactId>malhar-demos</artifactId>
     <groupId>com.datatorrent</groupId>
-    <version>3.1.2-SNAPSHOT</version>
+    <version>3.1.2-MLHR1934</version>
   </parent>
   
   <groupId>com.datatorrent</groupId>
-  <version>3.1.2-SNAPSHOT</version>
+  <version>3.1.2-MLHR1934</version>
   <artifactId>echoserver</artifactId>
   <packaging>jar</packaging>
 
