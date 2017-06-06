@@ -21,6 +21,7 @@ package org.apache.apex.malhar.kafka;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -32,6 +33,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
@@ -89,6 +91,19 @@ public class KafkaConsumerWrapper implements Closeable
   private final Map<String, Map<TopicPartition, OffsetAndMetadata>> offsetsToCommit = new HashMap<>();
 
   private boolean waitForReplay = false;
+
+  final List<Future<?>> kafkaConsumreThreads = new ArrayList<>();
+
+  public boolean areKafkaThreadsAreRunning()
+  {
+    for (Future<?> future : kafkaConsumreThreads) {
+      if (future.isDone() || future.isCancelled()) {
+        return false;
+      }
+    }
+
+    return true;
+  }
 
   /**
    *
@@ -214,16 +229,21 @@ public class KafkaConsumerWrapper implements Closeable
               wrapper.putMessage(Pair.of(cluster, record));
             }
           } catch (NoOffsetForPartitionException e) {
+            logger.info("", e);
             wrapper.handleNoOffsetForPartitionException(e, consumer);
           } catch (InterruptedException e) {
             throw new IllegalStateException("Consumer thread is interrupted unexpectedly", e);
           }
         }
       } catch (WakeupException we) {
-        logger.info("The consumer is being stopped");
+        logger.error("The consumer is being stopped");
       } catch (InterruptedException e) {
+        logger.error("Kafka consumer thread was interrupted. {}", e);
         DTThrowable.rethrow(e);
+      } catch (Throwable ex) {
+        logger.error("Kafka consumer wrapper thread failed with the exception {}", ex);
       } finally {
+        logger.error("Exiting Kafka consumer thread.");
         consumer.close();
       }
     }
@@ -291,15 +311,19 @@ public class KafkaConsumerWrapper implements Closeable
 
     //  create one thread for each cluster
     // each thread use one KafkaConsumer to consume from 1+ partition(s) of 1+ topic(s)
+
     for (Map.Entry<String, List<TopicPartition>> e : consumerAssignment.entrySet()) {
 
       Properties prop = new Properties();
+      prop.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "none");
+
       if (ownerOperator.getConsumerProps() != null) {
         prop.putAll(ownerOperator.getConsumerProps());
       }
 
+      logger.info("Value of the Auto-Offset-Reset Config {}", prop.getProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG));
+
       prop.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, e.getKey());
-      prop.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "none");
       // never auto commit the offsets
       prop.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
       prop.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class.getName());
@@ -330,9 +354,9 @@ public class KafkaConsumerWrapper implements Closeable
       }
 
       consumers.put(e.getKey(), kc);
-      kafkaConsumerExecutor.submit(new ConsumerThread(e.getKey(), kc, this));
+      Future<?> future = kafkaConsumerExecutor.submit(new ConsumerThread(e.getKey(), kc, this));
+      kafkaConsumreThreads.add(future);
     }
-
   }
 
   /**

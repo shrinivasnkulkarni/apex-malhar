@@ -255,6 +255,10 @@ public abstract class AbstractKafkaInputOperator implements InputOperator,
       }
     }
     emitCount += count;
+
+    if (!consumerWrapper.areKafkaThreadsAreRunning()) {
+      throw new RuntimeException("Kafka Consumer threads exited.");
+    }
   }
 
   protected abstract void emitTuple(String cluster, ConsumerRecord<byte[], byte[]> message);
