@@ -21,6 +21,7 @@ package org.apache.apex.malhar.kafka;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -32,6 +33,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
@@ -89,6 +91,19 @@ public class KafkaConsumerWrapper implements Closeable
   private final Map<String, Map<TopicPartition, OffsetAndMetadata>> offsetsToCommit = new HashMap<>();
 
   private boolean waitForReplay = false;
+
+  final List<Future<?>> kafkaConsumreThreads = new ArrayList<>();
+
+  public boolean areKafkaThreadsAreRunning()
+  {
+    for (Future<?> future : kafkaConsumreThreads) {
+      if (future.isDone() || future.isCancelled()) {
+        return false;
+      }
+    }
+
+    return true;
+  }
 
   /**
    *
@@ -330,9 +345,9 @@ public class KafkaConsumerWrapper implements Closeable
       }
 
       consumers.put(e.getKey(), kc);
-      kafkaConsumerExecutor.submit(new ConsumerThread(e.getKey(), kc, this));
+      Future<?> future = kafkaConsumerExecutor.submit(new ConsumerThread(e.getKey(), kc, this));
+      kafkaConsumreThreads.add(future);
     }
-
   }
 
   /**
