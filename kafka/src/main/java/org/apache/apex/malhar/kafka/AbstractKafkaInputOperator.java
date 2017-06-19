@@ -31,6 +31,9 @@ import java.util.Set;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotNull;
 
+import org.codehaus.jettison.json.JSONArray;
+import org.codehaus.jettison.json.JSONException;
+import org.codehaus.jettison.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -90,6 +93,16 @@ public abstract class AbstractKafkaInputOperator implements InputOperator,
     LogManager.getLogger(ConsumerConfig.class).setLevel(Level.WARN);
   }
 
+  public String getOffsets()
+  {
+    return offsets;
+  }
+
+  public void setOffsets(String offsets)
+  {
+    this.offsets = offsets;
+  }
+
   public enum InitialOffset
   {
     EARLIEST, // consume from beginning of the partition every time when application restart
@@ -109,6 +122,8 @@ public abstract class AbstractKafkaInputOperator implements InputOperator,
    * offset track for checkpoint
    */
   private final Map<AbstractKafkaPartitioner.PartitionMeta, Long> offsetTrack = new HashMap<>();
+
+  private String offsets = null;
 
   private final transient Map<AbstractKafkaPartitioner.PartitionMeta, Long> windowStartOffset = new HashMap<>();
 
@@ -249,6 +264,7 @@ public abstract class AbstractKafkaInputOperator implements InputOperator,
       emitTuple(tuple.getLeft(), msg);
       AbstractKafkaPartitioner.PartitionMeta pm = new AbstractKafkaPartitioner.PartitionMeta(tuple.getLeft(),
           msg.topic(), msg.partition());
+
       offsetTrack.put(pm, msg.offset() + 1);
       if (isIdempotent() && !windowStartOffset.containsKey(pm)) {
         windowStartOffset.put(pm, msg.offset());
@@ -320,6 +336,27 @@ public abstract class AbstractKafkaInputOperator implements InputOperator,
     metrics = new KafkaMetrics(metricsRefreshInterval);
     windowDataManager.setup(context);
     operatorId = context.getId();
+
+    if (offsetTrack != null && offsetTrack.isEmpty() && (offsets != null) && (!offsets.isEmpty())) {
+      try {
+
+        JSONArray offsets = new JSONObject(this.offsets).getJSONArray("offsets");
+
+        for (int i = 0; i < offsets.length(); ++i) {
+
+          JSONObject offset = offsets.getJSONObject(i);
+
+          String cluster = offset.getString("cluster");
+          String topic = offset.getString("topic");
+          int partitionId = offset.getInt("partitionId");
+
+          offsetTrack.put(new AbstractKafkaPartitioner.PartitionMeta(cluster, topic, partitionId), offset.getLong("offset"));
+        }
+      } catch (JSONException e) {
+        logger.info("Setting the offsets failed.");
+        throw new RuntimeException(e);
+      }
+    }
   }
 
   @Override
