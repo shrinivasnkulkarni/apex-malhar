@@ -30,7 +30,7 @@
 
   <groupId>org.apache.apex</groupId>
   <artifactId>malhar</artifactId>
-  <version>3.7.1-SNAPSHOT</version>
+  <version>3.7.1-Offsets-06202017</version>
   <packaging>pom</packaging>
   <name>Apache Apex Malhar</name>
   <url>http://apex.apache.org</url>
@@ -210,7 +210,6 @@
   <modules>
     <module>library</module>
     <module>contrib</module>
-    <module>examples</module>
   </modules>
 
   <dependencies>
