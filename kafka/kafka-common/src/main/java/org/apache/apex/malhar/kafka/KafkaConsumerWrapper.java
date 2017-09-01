@@ -311,12 +311,14 @@ public class KafkaConsumerWrapper implements Closeable
     for (Map.Entry<String, List<TopicPartition>> e : consumerAssignment.entrySet()) {
 
       Properties prop = new Properties();
+      prop.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "none");
+
       if (ownerOperator.getConsumerProps() != null) {
         prop.putAll(ownerOperator.getConsumerProps());
       }
 
+      logger.info("Value of the Auto-Offset-Reset Config {}", prop.getProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG));
       prop.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, e.getKey());
-      prop.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "none");
       // never auto commit the offsets
       prop.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
       prop.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class.getName());
